@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+	"os" // Tambahan PENTING untuk membaca Env Var
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -52,19 +53,26 @@ type UserTaskProgress struct {
 
 var DB *gorm.DB
 
-// --- KONEKSI & SEEDING DATABASE ---
+// --- KONEKSI DATABASE (SUDAH SIAP ONLINE) ---
 func ConnectDB() {
-	dsn := "root:@tcp(127.0.0.1:3306)/ecopoint_db?charset=utf8mb4&parseTime=True&loc=Local"
+	// 1. Cek apakah ada variabel DATABASE_URL (dari Hosting/Render)
+	dsn := os.Getenv("DATABASE_URL")
+	
+	// 2. Jika kosong, berarti sedang di komputer sendiri (Localhost)
+	if dsn == "" {
+		dsn = "root:@tcp(127.0.0.1:3306)/ecopoint_db?charset=utf8mb4&parseTime=True&loc=Local"
+	}
+
 	database, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Gagal koneksi ke database:", err)
 	}
 	DB = database
 	
-	// Auto Migrate (Membuat tabel otomatis)
+	// Auto Migrate
 	DB.AutoMigrate(&User{}, &Activity{}, &WeeklyTask{}, &UserTaskProgress{})
 
-	// Cek apakah perlu reset tugas (Jika tugas < 10)
+	// Cek & Seed Tugas Mingguan
 	var count int64
 	DB.Model(&WeeklyTask{}).Count(&count)
 	if count < 10 {
@@ -75,7 +83,6 @@ func ConnectDB() {
 		DB.Exec("TRUNCATE TABLE user_task_progresses")
 		DB.Exec("SET FOREIGN_KEY_CHECKS = 1")
 
-		// Daftar 20 Tugas Baru
 		tasks := []WeeklyTask{
 			{Title: "Bawa Botol Minum Sendiri", Points: 30, TargetCount: 5},
 			{Title: "Belanja Pakai Tas Kain", Points: 40, TargetCount: 2},
@@ -105,20 +112,18 @@ func ConnectDB() {
 
 // --- CONTROLLERS ---
 
-// 1. REGISTER (Penyimpanan Data User Baru)
+// 1. REGISTER
 func Register(c *gin.Context) {
 	var input User
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	// Cek Email Kembar
 	var cekUser User
 	if err := DB.Where("email = ?", input.Email).First(&cekUser).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Email sudah terdaftar!"})
 		return
 	}
-
 	input.TotalPoints = 0
 	DB.Create(&input)
 	c.JSON(http.StatusOK, gin.H{"message": "Pendaftaran Berhasil!", "user": input})
@@ -142,7 +147,7 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Login Berhasil", "user_id": user.ID, "name": user.Name})
 }
 
-// 3. GET PROFILE (Penting agar poin muncul di Dashboard)
+// 3. GET PROFILE
 func GetUserProfile(c *gin.Context) {
 	userID := c.Query("user_id")
 	var user User
@@ -153,7 +158,7 @@ func GetUserProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
-// 4. CREATE ACTIVITY (Lapor Aksi + Hitung Poin Misi)
+// 4. CREATE ACTIVITY
 func CreateActivity(c *gin.Context) {
 	category := c.PostForm("category")
 	desc := c.PostForm("description")
@@ -167,7 +172,6 @@ func CreateActivity(c *gin.Context) {
 		userID = 1
 	}
 
-	// Upload Foto
 	file, err := c.FormFile("photo")
 	photoPath := ""
 	if err == nil {
@@ -178,40 +182,30 @@ func CreateActivity(c *gin.Context) {
 		}
 	}
 
-	// Logika Poin
 	points := 0
 	isWeeklyTask := false
 	var task WeeklyTask
 
-	// Cek apakah Misi Mingguan?
 	if taskIDStr != "" {
 		if taskID, err := strconv.ParseUint(taskIDStr, 10, 32); err == nil {
 			if err := DB.First(&task, uint(taskID)).Error; err == nil {
-				points = task.Points // Pakai Poin Misi
+				points = task.Points
 				isWeeklyTask = true
 			}
 		}
 	}
 
-	// Jika bukan misi, pakai poin kategori standar
 	if !isWeeklyTask {
 		switch category {
-		case "Menanam Pohon":
-			points = 50
-		case "Daur Ulang Sampah":
-			points = 20
-		case "Hemat Energi":
-			points = 15
-		case "Transportasi Hijau":
-			points = 30
-		case "Transportasi Ramah Lingkungan":
-			points = 30
-		default:
-			points = 10
+		case "Menanam Pohon": points = 50
+		case "Daur Ulang Sampah": points = 20
+		case "Hemat Energi": points = 15
+		case "Transportasi Hijau": points = 30
+		case "Transportasi Ramah Lingkungan": points = 30
+		default: points = 10
 		}
 	}
 
-	// Simpan Aktivitas
 	activity := Activity{
 		UserID:       uint(userID),
 		Category:     category,
@@ -221,18 +215,14 @@ func CreateActivity(c *gin.Context) {
 	}
 	DB.Create(&activity)
 
-	// Update Status Misi (Jika Mingguan)
 	missionMessage := ""
 	if isWeeklyTask {
 		year, week := time.Now().ISOWeek()
 		var prog UserTaskProgress
-		
 		err := DB.Where("user_id = ? AND task_id = ?", uint(userID), task.ID).First(&prog).Error
 		
-		// Buat baru atau Update jika beda minggu
 		if err != nil || prog.Week != week || prog.Year != year {
-			if err == nil { DB.Delete(&prog) } // Hapus yang lama biar bersih
-			
+			if err == nil { DB.Delete(&prog) }
 			prog = UserTaskProgress{UserID: uint(userID), TaskID: task.ID, Week: week, Year: year, IsDone: true}
 			DB.Create(&prog)
 			missionMessage = " (Misi Selesai!)"
@@ -243,14 +233,9 @@ func CreateActivity(c *gin.Context) {
 		}
 	}
 
-	// Update Total Poin User (Metode Aman: Langsung Update di DB)
 	if points > 0 {
-		if err := DB.Model(&User{}).Where("id = ?", uint(userID)).
-			UpdateColumn("total_points", gorm.Expr("total_points + ?", points)).Error; err != nil {
-			log.Println("❌ Gagal update poin:", err)
-		} else {
-			log.Printf("✅ User %d nambah %d poin. Sumber: %s", userID, points, category)
-		}
+		DB.Model(&User{}).Where("id = ?", uint(userID)).
+			UpdateColumn("total_points", gorm.Expr("total_points + ?", points))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -259,7 +244,7 @@ func CreateActivity(c *gin.Context) {
 	})
 }
 
-// 5. DELETE ACTIVITY (Hapus & Kurangi Poin)
+// 5. DELETE ACTIVITY
 func DeleteActivity(c *gin.Context) {
 	id := c.Param("id")
 	var activity Activity
@@ -267,7 +252,6 @@ func DeleteActivity(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data tidak ditemukan"})
 		return
 	}
-	// Kurangi poin user
 	DB.Model(&User{}).Where("id = ?", activity.UserID).
 		UpdateColumn("total_points", gorm.Expr("total_points - ?", activity.PointsEarned))
 	
@@ -326,7 +310,6 @@ func GetWeeklyTasks(c *gin.Context) {
 			if prog.Year == year && prog.Week == week {
 				isDone = prog.IsDone
 			} else {
-				// Reset status di DB jika minggu berganti
 				prog.IsDone = false; prog.Week = week; prog.Year = year; DB.Save(&prog)
 			}
 		}
@@ -359,6 +342,11 @@ func main() {
 	r.GET("/api/weekly-tasks", GetWeeklyTasks)
 	r.POST("/api/complete-task", CompleteTask)
 
-	log.Println("Server Backend berjalan di http://localhost:8080")
-	r.Run(":8080")
+	// PORT DINAMIS (SIAP ONLINE)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Println("Server Backend berjalan di port " + port)
+	r.Run(":" + port)
 }
