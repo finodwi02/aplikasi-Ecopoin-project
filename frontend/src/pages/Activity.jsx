@@ -102,7 +102,7 @@ export default function Activity() {
 
     try {
       const res = await axios.post(
-        `http://localhost:8080/api/activity`,
+        `https://aplikasi-ecopoin-project.onrender.com/api/activity`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },

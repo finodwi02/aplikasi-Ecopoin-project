@@ -45,10 +45,13 @@ export default function Login() {
     if (isLogin) {
       // --- LOGIKA LOGIN (NYATA) ---
       try {
-        const res = await axios.post("http://localhost:8080/api/login", {
-          email: formData.email,
-          password: formData.password,
-        });
+        const res = await axios.post(
+          "https://aplikasi-ecopoin-project.onrender.com/api/login",
+          {
+            email: formData.email,
+            password: formData.password,
+          }
+        );
 
         // Jika sukses
         const { user_id, name } = res.data;
@@ -80,12 +83,15 @@ export default function Login() {
 
       try {
         // Panggil API Backend untuk Register
-        await axios.post("http://localhost:8080/api/register", {
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          phone: formData.phone,
-        });
+        await axios.post(
+          "https://aplikasi-ecopoin-project.onrender.com/api/register",
+          {
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            phone: formData.phone,
+          }
+        );
 
         alert("🎉 Pendaftaran Berhasil! Akun sudah disimpan. Silakan Login.");
 

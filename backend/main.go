@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os" // Tambahan PENTING untuk membaca Env Var
 	"path/filepath"
 	"strconv"
 	"time"
-	"os" // Tambahan PENTING untuk membaca Env Var
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -178,7 +178,7 @@ func CreateActivity(c *gin.Context) {
 		filename := fmt.Sprintf("%d_%s", time.Now().Unix(), filepath.Base(file.Filename))
 		dst := "./uploads/" + filename
 		if err := c.SaveUploadedFile(file, dst); err == nil {
-			photoPath = "http://localhost:8080/uploads/" + filename
+			photoPath = "https://aplikasi-ecopoin-project.onrender.com/uploads/" + filename
 		}
 	}
 

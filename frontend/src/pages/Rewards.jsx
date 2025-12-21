@@ -14,10 +14,12 @@ export default function Rewards() {
   }, []);
 
   const fetchUserData = () => {
-    axios.get(`http://localhost:8080/api/leaderboard`).then((res) => {
-      const me = res.data.data.find((u) => u.id == userID);
-      if (me) setUser(me);
-    });
+    axios
+      .get(`https://aplikasi-ecopoin-project.onrender.com/api/leaderboard`)
+      .then((res) => {
+        const me = res.data.data.find((u) => u.id == userID);
+        if (me) setUser(me);
+      });
   };
 
   const items = [
@@ -62,10 +64,13 @@ export default function Rewards() {
 
     setLoading(item.id);
     try {
-      await axios.post("http://localhost:8080/api/redeem", {
-        user_id: parseInt(userID),
-        cost: item.cost,
-      });
+      await axios.post(
+        "https://aplikasi-ecopoin-project.onrender.com/api/redeem",
+        {
+          user_id: parseInt(userID),
+          cost: item.cost,
+        }
+      );
       alert(`✅ Berhasil menukar: ${item.name}`);
       fetchUserData();
     } catch (err) {

@@ -45,7 +45,9 @@ export default function Dashboard() {
   const fetchData = () => {
     // 1. Profil
     axios
-      .get(`http://localhost:8080/api/user?user_id=${userID}`)
+      .get(
+        `https://aplikasi-ecopoin-project.onrender.com/api/user?user_id=${userID}`
+      )
       .then((res) => {
         if (res.data.data) setUser(res.data.data);
       })
@@ -53,18 +55,22 @@ export default function Dashboard() {
 
     // 2. Leaderboard
     axios
-      .get(`http://localhost:8080/api/leaderboard`)
+      .get(`https://aplikasi-ecopoin-project.onrender.com/api/leaderboard`)
       .then((res) => setUsers(res.data.data || []));
 
     // 3. Riwayat
     axios
-      .get(`http://localhost:8080/api/user-activities?user_id=${userID}`)
+      .get(
+        `https://aplikasi-ecopoin-project.onrender.com/api/user-activities?user_id=${userID}`
+      )
       .then((res) => setActivities(res.data.data || []))
       .catch(() => setActivities([]));
 
     // 4. Tugas Mingguan
     axios
-      .get(`http://localhost:8080/api/weekly-tasks?user_id=${userID}`)
+      .get(
+        `https://aplikasi-ecopoin-project.onrender.com/api/weekly-tasks?user_id=${userID}`
+      )
       .then((res) => setTasks(res.data.data || []))
       .catch(() => setTasks([]));
   };
@@ -81,7 +87,9 @@ export default function Dashboard() {
       )
     ) {
       try {
-        await axios.delete(`http://localhost:8080/api/activity/${id}`);
+        await axios.delete(
+          `https://aplikasi-ecopoin-project.onrender.com/api/activity/${id}`
+        );
         fetchData(); // Refresh data biar hilang dari list dan poin berkurang
       } catch (err) {
         alert("Gagal menghapus aktivitas.");
